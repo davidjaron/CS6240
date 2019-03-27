@@ -5,7 +5,7 @@
 hadoop.root=/Users/davidaron/Downloads/hadoop-2.8.5
 jar.name=mr-demo-1.0.jar
 jar.path=target/${jar.name}
-job.name=pr.PageRank
+job.name=pr.AllPairs
 local.input=input
 local.output=output
 # Pseudo-Cluster Execution

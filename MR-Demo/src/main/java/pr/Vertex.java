@@ -10,9 +10,7 @@ import java.util.List;
 
 public class Vertex implements Writable {
   private int page;
-  private double pageRank;
-  private List<Integer> adjacent;
-  private boolean isVertex;
+  private List<AdjacentVertex> adjacent;
 
   public Vertex(){
     this.adjacent = new ArrayList<>();
@@ -20,67 +18,52 @@ public class Vertex implements Writable {
 
   @Override
   public void write(DataOutput dataOutput) throws IOException {
+    dataOutput.writeInt(this.page);
     int size = adjacent.size();
     dataOutput.writeInt(size);
-    for (int j : adjacent){
-      dataOutput.writeInt(j);
+    dataOutput.writeChars(" ");
+    for (AdjacentVertex j : adjacent){
+      dataOutput.writeInt(j.vertex);
+      dataOutput.writeChars(",");
+      dataOutput.writeInt(j.getCost());
+      dataOutput.writeChars("|");
     }
-    dataOutput.writeDouble(pageRank);
-    dataOutput.writeBoolean(isVertex);
-    dataOutput.writeInt(page);
   }
 
   @Override
   public void readFields(DataInput dataInput) throws IOException {
-    List<Integer> l = new ArrayList<>();
+    this.page = dataInput.readInt();
+    List<AdjacentVertex> l = new ArrayList<>();
     int size = dataInput.readInt();
     for (int i = 0; i < size; i++){
-      l.add(dataInput.readInt());
+      int vertex = dataInput.readInt();
+      int cost = dataInput.readInt();
+      l.add(new AdjacentVertex(vertex, cost));
     }
-    this.pageRank = dataInput.readDouble();
     this.adjacent = l;
-    this.isVertex = dataInput.readBoolean();
-    this.page = dataInput.readInt();
   }
 
   @Override
   public String toString() {
     StringBuilder output = new StringBuilder();
-    output.append(pageRank).append(" ");
     int size = adjacent.size();
     output.append(size).append(" ");
-    for (int j : adjacent){
-      output.append(j).append(" ");
+    for (AdjacentVertex j : adjacent){
+      output.append(j).append("|");
     }
     return output.toString();
   }
 
-  public double getPageRank() {
-    return pageRank;
-  }
-
-  public void setPageRank(double pageRank) {
-    this.pageRank = pageRank;
-  }
-
-  public List<Integer> getAdjacent() {
+  public List<AdjacentVertex> getAdjacent() {
     return adjacent;
   }
 
-  public void setAdjacent(List<Integer> adjacent) {
+  public void setAdjacent(List<AdjacentVertex> adjacent) {
     this.adjacent = adjacent;
   }
 
-  public void addAdjacent(int adj){
+  public void addAdjacent(AdjacentVertex adj){
     this.adjacent.add(adj);
-  }
-
-  public boolean isVertex() {
-    return isVertex;
-  }
-
-  public void setVertex(boolean vertex) {
-    isVertex = vertex;
   }
 
   public int getPage() {
