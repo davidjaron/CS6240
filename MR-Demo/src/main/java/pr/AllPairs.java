@@ -1,6 +1,7 @@
 package pr;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
@@ -18,13 +19,13 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
-import org.fusesource.leveldbjni.All;
+
+import bfs.CustomCounter;
 
 public class AllPairs extends Configured implements Tool {
   private static final Logger logger = LogManager.getLogger(AllPairs.class);
@@ -59,17 +60,17 @@ public class AllPairs extends Configured implements Tool {
         String[] adjacent = lines[2].split("\\|");
         for (String temp : adjacent){
           String[] adj = temp.split(",");
-          if (adj[1].equals("∞")){
-            map.get(key).add(new AdjacentVertex(Integer.parseInt(adj[0]), Integer.MAX_VALUE));
-          } else {
-            map.get(key).add(new AdjacentVertex(Integer.parseInt(adj[0]), Integer.parseInt(adj[1])));
+          if (!map.containsKey(Integer.parseInt(adj[0]))){
+            map.put(Integer.parseInt(adj[0]), new ArrayList<>());
           }
+          map.get(key).add(new AdjacentVertex(Integer.parseInt(adj[0]), Integer.parseInt(adj[1])));
           if (!map.containsKey(Integer.parseInt(adj[0]))){
             map.put(Integer.parseInt(adj[0]), new ArrayList<>());
           }
         }
         line = reader.readLine();
       }
+      context.getCounter(CustomCounter.CHANGED).getValue();
     }
 
 
@@ -89,22 +90,12 @@ public class AllPairs extends Configured implements Tool {
       int size = Integer.parseInt(firstSplit[0]);
 
       v.setPage(vertexNum);
-      for (int i = 1; i < 1000; i++){
-        adjacents.add(new AdjacentVertex(i, Integer.MAX_VALUE));
-      }
-
       String[] adjacentString = firstSplit[2].split("\\|");
 
       for (String temp : adjacentString){
         String[] tempSplit = temp.split(",");
-        if (tempSplit[1].equals("∞")){
-          AdjacentVertex adj = new AdjacentVertex(Integer.parseInt(tempSplit[0]), Integer.MAX_VALUE);
-          adjacents.add(adj);
-        } else {
-          AdjacentVertex adj = new AdjacentVertex(Integer.parseInt(tempSplit[0]), Integer.parseInt
-                  (tempSplit[1]));
-          adjacents.add(adj);
-        }
+        AdjacentVertex adj = new AdjacentVertex(Integer.parseInt(tempSplit[0]), Integer.parseInt(tempSplit[1]));
+        adjacents.add(adj);
       }
 
       HashMap<Integer, List<Integer>> lowestCost = new HashMap<>();
@@ -120,10 +111,10 @@ public class AllPairs extends Configured implements Tool {
         for (AdjacentVertex temp : map.get(j.vertex)){
           if (!lowestCost.containsKey(temp.getVertex())){
             List<Integer> costs = new ArrayList<>();
-            costs.add(temp.getCost() + 1);
+            costs.add(temp.getCost() + j.getCost());
             lowestCost.put(temp.getVertex(), costs);
           } else {
-            lowestCost.get(temp.getVertex()).add(temp.getCost()+1);
+            lowestCost.get(temp.getVertex()).add(temp.getCost()+j.getCost());
           }
         }
       }
@@ -135,7 +126,14 @@ public class AllPairs extends Configured implements Tool {
         v.addAdjacent(new AdjacentVertex(k, min));
       }
 
+      if (!adjacents.containsAll(v.getAdjacent())){
+        context.getCounter(CustomCounter.CHANGED).increment(1);
+      }
+
+
       context.write(new IntWritable(v.getPage()), v);
+
+
     }
   }
 
@@ -181,35 +179,47 @@ public class AllPairs extends Configured implements Tool {
 
   @Override
   public int run(final String[] args) throws Exception {
-    int runs = 10;
     int i = 0;
-    long size = 0;
-    long overflow = 0;
+    long changed = 1;
     // Iterates through each job, creating new output and input folders for each iteration.
 
     // Final output, map only job which produces final AllPairs numbers
 
-    final Configuration initialConf = getConf();
-    initialConf.setDouble("dangling", overflow);
-    initialConf.setLong("size", size);
-    final Job initialJob = Job.getInstance(initialConf, "step" + i);
-    initialJob.setJarByClass(AllPairs.class);
-    final Configuration initialJobConfiguration= initialJob.getConfiguration();
-    initialJobConfiguration.set("mapreduce.output.textoutputformat.separator", " ");
-    // Delete output directory, only to ease local development; will not work on AWS. ===========
-    final FileSystem fileSystem = FileSystem.get(initialConf);
-    if (fileSystem.exists(new Path(args[1]))) {
-      fileSystem.delete(new Path(args[1]), true);
+    ToAdjacency.main(args);
+
+    while (changed > 0){
+      final Configuration initialConf = getConf();
+      final Job initialJob = Job.getInstance(initialConf, "step" + i);
+      initialJob.setJarByClass(AllPairs.class);
+      final Configuration initialJobConfiguration= initialJob.getConfiguration();
+      initialJobConfiguration.set("mapreduce.output.textoutputformat.separator", " ");
+      // Delete output directory, only to ease local development; will not work on AWS. ===========
+      final FileSystem fileSystem = FileSystem.get(initialConf);
+      if (fileSystem.exists(new Path(args[1]))) {
+        fileSystem.delete(new Path(args[1]), true);
+      }
+      // ================
+      initialJob.setMapperClass(AllPairMapper.class);
+      initialJob.setNumReduceTasks(0);
+      initialJob.setOutputKeyClass(IntWritable.class);
+      initialJob.setOutputValueClass(Vertex.class);
+      FileInputFormat.addInputPath(initialJob, new Path(args[0] + (i-1)));
+      File folder = new File(args[0] + (i-1));
+      File[] listOfFiles = folder.listFiles();
+      if (listOfFiles != null) {
+        for (File f : listOfFiles){
+          if (!f.getName().substring(0, 1).equals(".") && !f.getName().substring(0, 1).equals("_")){
+            initialJob.addCacheFile(new Path(f.getPath()).toUri());
+          }
+
+        }
+      }
+      FileOutputFormat.setOutputPath(initialJob, new Path(args[0] + i));
+      int status = initialJob.waitForCompletion(true) ? 0 : 1;
+      changed = initialJob.getCounters().findCounter(CustomCounter.CHANGED).getValue();
+      i++;
     }
-    // ================
-    initialJob.setMapperClass(AllPairMapper.class);
-    initialJob.setNumReduceTasks(0);
-    initialJob.setOutputKeyClass(IntWritable.class);
-    initialJob.setOutputValueClass(Vertex.class);
-    FileInputFormat.addInputPath(initialJob, new Path(args[0]));
-    FileOutputFormat.setOutputPath(initialJob, new Path(args[1]));
-    initialJob.addCacheFile(new Path(args[0] + "/part-r-00000").toUri());
-    return initialJob.waitForCompletion(true) ? 0 : 1;
+    return 0;
   }
 
   public static void main(final String[] args) {
@@ -218,12 +228,12 @@ public class AllPairs extends Configured implements Tool {
     test[1] = "/Users/davidaron/Documents/CS6240/MR-Demo/output";
 
 
-    if (test.length != 2) {
+    if (args.length != 2) {
       throw new Error("Two arguments required:\n<input-dir> <output-dir>");
     }
 
     try {
-      ToolRunner.run(new AllPairs(), test);
+      ToolRunner.run(new AllPairs(), args);
     } catch (final Exception e) {
       logger.error("", e);
     }

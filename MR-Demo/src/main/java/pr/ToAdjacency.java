@@ -81,7 +81,7 @@ public class ToAdjacency extends Configured implements Tool {
 
   @Override
   public int run(final String[] args) throws Exception {
-    int runs = 10;
+    int runs = 100;
     int i = 0;
     long size = 0;
     long overflow = 0;
@@ -109,7 +109,7 @@ public class ToAdjacency extends Configured implements Tool {
     initialJob.setMapOutputValueClass(IntWritable.class);
     initialJob.setOutputValueClass(Vertex.class);
     FileInputFormat.addInputPath(initialJob, new Path(args[0]));
-    FileOutputFormat.setOutputPath(initialJob, new Path(args[1]));
+    FileOutputFormat.setOutputPath(initialJob, new Path(args[0] + -1));
     //initialJob.addCacheFile(new Path(args[0] + "/test.txt").toUri());
     return initialJob.waitForCompletion(true) ? 0 : 1;
   }
@@ -120,12 +120,12 @@ public class ToAdjacency extends Configured implements Tool {
     test[1] = "/Users/davidaron/Documents/CS6240/MR-Demo/output";
 
 
-    if (test.length != 2) {
+    if (args.length != 2) {
       throw new Error("Two arguments required:\n<input-dir> <output-dir>");
     }
 
     try {
-      ToolRunner.run(new ToAdjacency(), test);
+      ToolRunner.run(new ToAdjacency(), args);
     } catch (final Exception e) {
       logger.error("", e);
     }

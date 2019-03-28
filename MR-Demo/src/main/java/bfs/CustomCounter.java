@@ -1,5 +1,5 @@
 package bfs;
 
 public enum CustomCounter {
-  USED, SIZE
+  USED, SIZE, CHANGED
 }

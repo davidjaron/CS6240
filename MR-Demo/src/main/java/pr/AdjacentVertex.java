@@ -1,5 +1,8 @@
 package pr;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class AdjacentVertex {
   int vertex;
   int cost;
@@ -32,5 +35,31 @@ public class AdjacentVertex {
       return this.vertex + "," + "∞";
     }
     return this.vertex + "," + this.cost;
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    AdjacentVertex a = (AdjacentVertex) obj;
+
+    if (a.vertex == this.vertex){
+      return a.cost == this.cost;
+    } else {
+      return false;
+    }
+  }
+
+  public static void main(String[] args){
+    AdjacentVertex t = new AdjacentVertex(1, 3);
+    AdjacentVertex t2 = new AdjacentVertex(1, 3);
+
+    List<AdjacentVertex> l1 = new ArrayList<>();
+    l1.add(t);
+    List<AdjacentVertex> l2 = new ArrayList<>();
+    l2.add(t2);
+
+
+
+
+    System.out.println(l1.containsAll(l2));
   }
 }

@@ -1,5 +1,8 @@
-/Users/davidaron/Documents/CS6240HW4/MR-Demo/src/main/java/pr/OutputMapper.java
-/Users/davidaron/Documents/CS6240HW4/MR-Demo/src/main/java/pr/PageRank.java
-/Users/davidaron/Documents/CS6240HW4/MR-Demo/src/main/java/pr/Vertex.java
-/Users/davidaron/Documents/CS6240HW4/MR-Demo/src/main/java/pr/CustomCounter.java
-/Users/davidaron/Documents/CS6240HW4/MR-Demo/src/main/java/pr/SyntheticGraph.java
+/Users/davidaron/Documents/CS6240/MR-Demo/src/main/java/bfs/VertexStructure.java
+/Users/davidaron/Documents/CS6240/MR-Demo/src/main/java/pr/AdjacentVertex.java
+/Users/davidaron/Documents/CS6240/MR-Demo/src/main/java/bfs/BFS.java
+/Users/davidaron/Documents/CS6240/MR-Demo/src/main/java/pr/AllPairs.java
+/Users/davidaron/Documents/CS6240/MR-Demo/src/main/java/bfs/CustomCounter.java
+/Users/davidaron/Documents/CS6240/MR-Demo/src/main/java/pr/Vertex.java
+/Users/davidaron/Documents/CS6240/MR-Demo/src/main/java/pr/ToAdjacency.java
+/Users/davidaron/Documents/CS6240/MR-Demo/src/main/java/pr/OutputMapper.java

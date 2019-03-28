@@ -25,7 +25,7 @@ import org.apache.log4j.Logger;
 public class BFS extends Configured implements Tool {
   private static final Logger logger = LogManager.getLogger(BFS.class);
 
-  public static class TokenizerMapper extends Mapper<Object, Text, Text, VertexStructure> {
+  public static class TokenizerMapper extends Mapper<Object, Text, IntWritable, VertexStructure> {
     private final static IntWritable one = new IntWritable(1);
     private final Text word = new Text();
 
@@ -35,30 +35,30 @@ public class BFS extends Configured implements Tool {
 //			final StringTokenizer itr = new StringTokenizer(value.toString());
       String[] line = value.toString().split(",");
       VertexStructure v = new VertexStructure();
-      v.setVertice(line[0]);
+      v.setVertice(Integer.parseInt(line[0]));
       v.setStructure(true);
       v.setActive(Boolean.parseBoolean(line[1]));
-      if (v.getVertice().equals(context.getConfiguration().get("start-node"))){
+      if (v.getVertice() == Integer.parseInt(context.getConfiguration().get("start-node"))){
         v.setActive(true);
       }
       int size = Integer.parseInt(line[2]);
       for (int i = 0; i < size; i++){
-        v.addAdjacent(line[3+i]);
+        v.addAdjacent(Integer.parseInt(line[3+i]));
       }
       v.setLevel(Integer.parseInt(line[3+size]));
       v.setUsed(Boolean.parseBoolean(line[4+size]));
 
       if (v.isActive() && !v.isUsed()){
         v.setUsed(true);
-        for (String adj : v.getAdjacent()){
+        for (int adj : v.getAdjacent()){
           VertexStructure temp = new VertexStructure();
           temp.setActive(true);
           temp.setLevel(v.getLevel() + 1);
           temp.setVertice(adj);
-          context.write(new Text(adj), temp);
+          context.write(new IntWritable(adj), temp);
         }
       }
-      context.write(new Text(v.getVertice()), v);
+      context.write(new IntWritable(v.getVertice()), v);
       if (v.isUsed()){
         context.getCounter(CustomCounter.USED).increment(1);
       }
@@ -76,15 +76,12 @@ public class BFS extends Configured implements Tool {
 //			final StringTokenizer itr = new StringTokenizer(value.toString());
       String[] line = value.toString().split(",");
       VertexStructure v = new VertexStructure();
-      v.setVertice(line[0]);
+      v.setVertice(Integer.parseInt(line[0]));
       v.setStructure(true);
       v.setActive(Boolean.parseBoolean(line[1]));
-      if (v.getVertice().equals(context.getConfiguration().get("start-node"))) {
-        v.setActive(true);
-      }
       int size = Integer.parseInt(line[2]);
       for (int i = 0; i < size; i++) {
-        v.addAdjacent(line[3 + i]);
+        v.addAdjacent(Integer.parseInt(line[3 + i]));
       }
       v.setLevel(Integer.parseInt(line[3 + size]));
       v.setUsed(Boolean.parseBoolean(line[4 + size]));
@@ -93,10 +90,30 @@ public class BFS extends Configured implements Tool {
     }
   }
 
-  public static class IntSumReducer extends Reducer<Text, VertexStructure, NullWritable, VertexStructure> {
+  public static class SetupMapper extends Mapper<Object, Text, IntWritable, IntWritable> {
+    private final static IntWritable one = new IntWritable(1);
+    private final Text word = new Text();
 
     @Override
-    public void reduce(final Text key, final Iterable<VertexStructure> values, final Context
+    public void map(final Object key, final Text value, final Context context) throws IOException,
+            InterruptedException {
+//			final StringTokenizer itr = new StringTokenizer(value.toString());
+      String[] line = value.toString().split(",");
+      int k = Integer.parseInt(context.getConfiguration().get("k_vakue"));
+      int outgoing = Integer.parseInt(line[0]);
+      int incoming = Integer.parseInt(line[1]);
+      if (incoming <= k && outgoing <= k){
+        context.write(new IntWritable(outgoing), new IntWritable(incoming));
+      }
+
+    }
+  }
+
+  public static class IntSumReducer extends Reducer<IntWritable, VertexStructure, NullWritable,
+          VertexStructure> {
+
+    @Override
+    public void reduce(final IntWritable key, final Iterable<VertexStructure> values, final Context
             context)
             throws IOException, InterruptedException {
 
@@ -128,6 +145,25 @@ public class BFS extends Configured implements Tool {
     }
   }
 
+  public static class SetupReducer extends Reducer<IntWritable, IntWritable, NullWritable,
+          VertexStructure> {
+
+    @Override
+    public void reduce(final IntWritable key, final Iterable<IntWritable> values, final Context
+            context)
+            throws IOException, InterruptedException {
+
+      VertexStructure structure = new VertexStructure();
+      structure.setVertice(key.get());
+      boolean active = false;
+      int level = Integer.MAX_VALUE;
+      for (IntWritable temp : values){
+        structure.addAdjacent(temp.get());
+      }
+      context.write(null, structure);
+    }
+  }
+
   @Override
   public int run(final String[] args) throws Exception {
     long size = 100;
@@ -135,6 +171,31 @@ public class BFS extends Configured implements Tool {
     int status = 1;
     int itr = 0;
 
+
+    final Configuration initialConf = getConf();
+    initialConf.setLong("size", size);
+    final Job initialJob = Job.getInstance(initialConf, "create Adjacency List");
+    initialJob.setJarByClass(BFS.class);
+    final Configuration initialJobConfiguration= initialJob.getConfiguration();
+    initialJobConfiguration.set("mapreduce.output.textoutputformat.separator", "\t");
+    initialJobConfiguration.set("k_val", "10");
+    // Delete output directory, only to ease local development; will not work on AWS. ===========
+//    final FileSystem fileSystem = FileSystem.get(initialConf);
+//    if (fileSystem.exists(new Path(args[1]))) {
+//      fileSystem.delete(new Path(args[1]), true);
+//    }
+    // ================
+    initialJob.setMapperClass(SetupMapper.class);
+    initialJob.setReducerClass(SetupReducer.class);
+    initialJob.setMapOutputKeyClass(IntWritable.class);
+    initialJob.setMapOutputValueClass(IntWritable.class);
+    initialJob.setOutputKeyClass(NullWritable.class);
+    initialJob.setOutputValueClass(VertexStructure.class);
+    FileInputFormat.addInputPath(initialJob, new Path(args[0]));
+    FileOutputFormat.setOutputPath(initialJob, new Path(args[0] + -1));
+    status = initialJob.waitForCompletion(true) ? 0 : 1;
+
+    // BFS algorithm traversal
     while (used < size){
       final Configuration conf = getConf();
       final Job job = Job.getInstance(conf, "step" + itr);
@@ -142,9 +203,9 @@ public class BFS extends Configured implements Tool {
       final Configuration jobConf = job.getConfiguration();
       jobConf.set("mapreduce.output.textoutputformat.separator", "\t");
       if (itr == 0){
-        jobConf.set("start-node", "s");
+        jobConf.set("start-node", "1");
       } else {
-        jobConf.set("start-node", "N/A");
+        jobConf.set("start-node", "-1");
       }
 
       // Delete output directory, only to ease local development; will not work on AWS. ===========
@@ -157,14 +218,10 @@ public class BFS extends Configured implements Tool {
       //job.setCombinerClass(IntSumReducer.class);
       job.setReducerClass(IntSumReducer.class);
       job.setMapOutputValueClass(VertexStructure.class);
-      job.setMapOutputKeyClass(Text.class);
+      job.setMapOutputKeyClass(IntWritable.class);
       job.setOutputKeyClass(NullWritable.class);
       job.setOutputValueClass(VertexStructure.class);
-      if (itr == 0){
-        FileInputFormat.addInputPath(job, new Path(args[0]));
-      } else {
-        FileInputFormat.addInputPath(job, new Path(args[0] + (itr-1)));
-      }
+      FileInputFormat.addInputPath(job, new Path(args[0] + (itr-1)));
       FileOutputFormat.setOutputPath(job, new Path(args[0] + itr));
       status = job.waitForCompletion(true) ? 0 : 1;
       used = job.getCounters().findCounter(CustomCounter.USED).getValue();
@@ -172,25 +229,25 @@ public class BFS extends Configured implements Tool {
       itr++;
     }
 
-    final Configuration initialConf = getConf();
-    initialConf.setLong("size", size);
-    final Job initialJob = Job.getInstance(initialConf, "produce output");
-    initialJob.setJarByClass(BFS.class);
-    final Configuration initialJobConfiguration= initialJob.getConfiguration();
-    initialJobConfiguration.set("mapreduce.output.textoutputformat.separator", "\t");
+    final Configuration finalconf = getConf();
+    finalconf.setLong("size", size);
+    final Job finalJob = Job.getInstance(finalconf, "produce output");
+    finalJob.setJarByClass(BFS.class);
+    final Configuration finalJobConfiguration = finalJob.getConfiguration();
+    finalJobConfiguration.set("mapreduce.output.textoutputformat.separator", "\t");
     // Delete output directory, only to ease local development; will not work on AWS. ===========
 //    final FileSystem fileSystem = FileSystem.get(initialConf);
 //    if (fileSystem.exists(new Path(args[1]))) {
 //      fileSystem.delete(new Path(args[1]), true);
 //    }
     // ================
-    initialJob.setMapperClass(FinalMapper.class);
-    initialJob.setNumReduceTasks(0);
-    initialJob.setOutputKeyClass(NullWritable.class);
-    initialJob.setOutputValueClass(Text.class);
-    FileInputFormat.addInputPath(initialJob, new Path(args[0] + (itr-1)));
-    FileOutputFormat.setOutputPath(initialJob, new Path(args[1]));
-    return initialJob.waitForCompletion(true) ? 0 : 1;
+    finalJob.setMapperClass(FinalMapper.class);
+    finalJob.setNumReduceTasks(0);
+    finalJob.setOutputKeyClass(NullWritable.class);
+    finalJob.setOutputValueClass(Text.class);
+    FileInputFormat.addInputPath(finalJob, new Path(args[0] + (itr-1)));
+    FileOutputFormat.setOutputPath(finalJob, new Path(args[1]));
+    return finalJob.waitForCompletion(true) ? 0 : 1;
 
   }
 

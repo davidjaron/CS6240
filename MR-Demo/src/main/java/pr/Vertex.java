@@ -21,12 +21,9 @@ public class Vertex implements Writable {
     dataOutput.writeInt(this.page);
     int size = adjacent.size();
     dataOutput.writeInt(size);
-    dataOutput.writeChars(" ");
     for (AdjacentVertex j : adjacent){
       dataOutput.writeInt(j.vertex);
-      dataOutput.writeChars(",");
       dataOutput.writeInt(j.getCost());
-      dataOutput.writeChars("|");
     }
   }
 

@@ -1,5 +1,0 @@
-s,false,2,a,b,0,false
-a,false,1,c,0,false
-b,false,1,c,0,false
-c,false,1,d,0,false
-d,false,2,a,c,0,false
